@@ -51,6 +51,11 @@
   pre { background: #0a0d11; border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin: 0;
     font: 11.5px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: #b8c2cf;
     height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+  details { margin-top: 8px; }
+  summary { color: var(--muted); font-size: 13px; cursor: pointer; padding: 8px 0; list-style: none; }
+  summary::before { content: "▸ "; }
+  details[open] summary::before { content: "▾ "; }
+  details[open] summary { margin-bottom: 8px; }
   .note { color: var(--muted); font-size: 13px; margin-top: 10px; }
   .alert { background: #2a1a1a; border: 1px solid #5a2a2a; color: #ffc9c9; border-radius: 12px; padding: 12px 14px;
     margin-bottom: 12px; font-size: 14px; display: none; }
@@ -60,7 +65,7 @@
 <main>
   <header>
     <h1>Bike-Display Testseite</h1>
-    <span class="ver">v0.2 · nur lesen</span>
+    <span class="ver">v0.3 · nur lesen</span>
   </header>
 
   <div class="alert" id="alert"></div>
@@ -96,12 +101,14 @@
     <span class="chip" id="cFrame">Format: –</span>
   </div>
 
-  <h2>Protokoll für die Rückmeldung</h2>
-  <div class="row">
-    <button class="ghost" id="btnCopy">Protokoll kopieren</button>
-    <button class="ghost" id="btnClear">Leeren</button>
-  </div>
-  <pre id="log"></pre>
+  <details id="logBox">
+    <summary>Protokoll (für Rückmeldung an die Entwicklung)</summary>
+    <div class="row">
+      <button class="ghost" id="btnCopy">Protokoll kopieren</button>
+      <button class="ghost" id="btnClear">Leeren</button>
+    </div>
+    <pre id="log"></pre>
+  </details>
   <p class="note">Diese Seite liest nur Werte aus dem Display. Sie ändert keine Einstellungen an Display oder Motor.
   Bildschirm bitte eingeschaltet lassen – im Hintergrund trennt der Browser die Verbindung.</p>
 </main>
@@ -123,11 +130,24 @@ const POLL_MS = 400;
 // Modus entspricht der Original-App: 1 = aktiviert, 2 = Händler, 0 = Testbetrieb.
 const APP_VERSION = [9, 27];          // 2.9.27
 const APP_CODE = [0x44, 0x33, 0x22, 0x11];
-const APP_MODE_CANDIDATES = [1, 2, 0]; // werden der Reihe nach probiert, falls das Display nicht antwortet
+const APP_MODE_CANDIDATES = [1, 2, 0]; // Modus 1 am C1 bestätigt; 2 und 0 nur als Rückfall
 function buildAppIdentity(mode) {
   const payload = [...APP_VERSION, ...APP_CODE, mode, 0x00, 0x00];
   return { name: "AppIdentity(mode=" + mode + ")", cmd: [0x2E, 0x18, ...payload], len: 4, timeout: 1500 };
 }
+
+// Bafang-Fehlercodes (M620/G510 = Bafang UART). Codes 1 und 3 sind laut App keine Störung.
+const BAFANG_ERRORS = {
+  1: "Normal", 3: "Bremse betätigt", 4: "Gasgriff nicht in Ausgangslage", 5: "Gasgriff-Fehler",
+  6: "Unterspannungsschutz", 7: "Überspannungsschutz", 8: "Hall-Sensor-Fehler (Motor)",
+  9: "Phasenleitung-Fehler (Motor)", 16: "Controller zu heiß", 17: "Temperatursensor Controller defekt",
+  18: "Stromsensor-Fehler", 19: "Temperatursensor Akku defekt", 20: "Temperatursensor Motor defekt",
+  33: "Geschwindigkeitssensor-Fehler", 34: "BMS-Kommunikationsfehler", 35: "Licht-Fehler",
+  36: "Lichtsensor-Fehler", 37: "Drehmomentsensor (Drehmoment)", 38: "Drehmomentsensor (Drehzahl)",
+  48: "Kommunikationsfehler",
+};
+const ERR_BENIGN = new Set([0, 1, 3]);   // kein Fehlerzustand
+const errorName = (c) => BAFANG_ERRORS[c] || ("Code " + c);
 
 // ---- Helpers ----
 const $ = (id) => document.getElementById(id);
@@ -206,13 +226,15 @@ function decodeIdentity(rx) {
   const d = rx.slice(2, rx.length - 2);
   return { mac: hex(d.slice(0, 6)).replace(/ /g, ":"), fw: d[7] + "." + d[6], release: d[8] };
 }
+const temp = (b) => (b === 0xFF ? null : b - 50);   // 0xFF = kein Sensor
 function decodeV04(rx) {
   const d = rx.slice(2, rx.length - 2);
   return {
     format: "V04",
     voltage: u16le(d, 0) * 0.01, speed: u16le(d, 2) * 0.01, current: u16le(d, 4) * 0.1,
     battery: d[6], cadence: d[7], humanTorque: d[8],
-    tDisplay: d[10] - 50, tMotor: d[11] - 50, tController: d[12] - 50, tBattery: d[13] - 50,
+    heartRate: d[9] === 0xFF ? null : d[9],
+    tDisplay: temp(d[10]), tMotor: temp(d[11]), tController: temp(d[12]), tBattery: temp(d[13]),
     error: d[14],
     light: (d[15] >> 7) & 1, tail: (d[15] >> 6) & 1, cruise: (d[15] >> 5) & 1, lock: (d[15] >> 4) & 1,
     assist: (d[16] >> 4) & 0x0F, mode: d[16] & 0x0F,
@@ -237,16 +259,17 @@ function render(s) {
   $("watt").textContent = fmt(s.voltage * s.current, 0);
   $("assist").textContent = s.assist;
   $("mode").textContent = s.mode ? "Offroad" : "Road";
-  $("tMotor").textContent = fmt(s.tMotor, 0);
-  $("cad").textContent = s.cadence === null ? "–" : s.cadence;
+  $("tMotor").textContent = (s.tMotor === null || s.tMotor === undefined) ? "–" : fmt(s.tMotor, 0);
+  $("cad").textContent = (s.cadence === null || s.cadence === undefined) ? "–" : s.cadence;
   const b = Math.max(0, Math.min(100, s.battery));
   $("battBar").style.width = b + "%";
   $("battTxt").textContent = s.battery + " %";
   $("cLight").className = "chip" + (s.light ? " on" : "");
   $("cLock").className = "chip" + (s.lock ? " on" : "");
   $("cCruise").className = "chip" + (s.cruise ? " on" : "");
-  $("cErr").textContent = "Fehler: " + (s.error ? s.error : "keiner");
-  $("cErr").className = "chip" + (s.error ? " bad" : "");
+  const fault = !ERR_BENIGN.has(s.error);
+  $("cErr").textContent = fault ? "Störung: " + errorName(s.error) : "Status: " + errorName(s.error);
+  $("cErr").className = "chip" + (fault ? " bad" : "");
   $("cFrame").textContent = "Format: " + s.format;
 }
 
