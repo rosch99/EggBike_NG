@@ -218,7 +218,7 @@
   </details>
   <p class="note">Diese Seite liest nur Werte aus dem Display. Sie ändert keine Einstellungen an Display oder Motor.
   Bildschirm bitte eingeschaltet lassen – im Hintergrund trennt der Browser die Verbindung.</p>
-  <div class="foot">Bike-Display · v0.23 · nur lesen</div>
+  <div class="foot">Bike-Display · v0.25 · nur lesen</div>
 </main>
 
 <script>
@@ -330,6 +330,7 @@ async function request(req, quiet) {
   }
   const rx = await waitBytes(req.len, req.timeout);
   const ok = rx.length === req.len && crcOk(rx);
+  if (rx.length && !crcOk(rx)) wrongCRCs++;   // Zähler für CSV (wie Original-App)
   if (!quiet || !ok) {
     log("TX " + req.name + ": " + hex(tx));
     log("RX " + (rx.length ? hex(rx) : "(keine Antwort)") +
@@ -352,6 +353,8 @@ function decodeV04(rx) {
     battery: d[6], cadence: d[7], humanTorque: d[8],
     heartRate: d[9] === 0xFF ? null : d[9],
     tDisplay: temp(d[10]), tMotor: temp(d[11]), tController: temp(d[12]), tBattery: temp(d[13]),
+    // Rohwerte für den CSV-Export (wie Original-App: 0xFF → 205, kein Sentinel)
+    tDisplayRaw: d[10] - 50, tMotorRaw: d[11] - 50, tControllerRaw: d[12] - 50, tBatteryRaw: d[13] - 50, heartRateRaw: d[9],
     error: d[14],
     light: (d[15] >> 7) & 1, tail: (d[15] >> 6) & 1, cruise: (d[15] >> 5) & 1, lock: (d[15] >> 4) & 1,
     assist: (d[16] >> 4) & 0x0F, mode: d[16] & 0x0F,
@@ -444,9 +447,9 @@ function riderPower(torqueNm, cadenceRpm) {
 
 // ---- Glättung (exponentiell gleitender Mittelwert) ----
 // alpha klein = ruhiger/träger, groß = schneller/zappeliger. Pro Messgröße abgestimmt.
-const EMA_ALPHA = { speed: 0.4, motor: 0.3, rider: 0.25, soc: 0.05, cadence: 0.3 };
-const ema = { speed: null, motor: null, rider: null, soc: null, cadence: null };
-function resetSmoothing() { ema.speed = ema.motor = ema.rider = ema.soc = ema.cadence = null; }
+const EMA_ALPHA = { speed: 0.4, motor: 0.3, rider: 0.25, soc: 0.05, cadence: 0.3, volt: 0.3, cur: 0.3, torque: 0.3 };
+const ema = { speed: null, motor: null, rider: null, soc: null, cadence: null, volt: null, cur: null, torque: null };
+function resetSmoothing() { ema.speed = ema.motor = ema.rider = ema.soc = ema.cadence = ema.volt = ema.cur = ema.torque = null; }
 function smooth(key, val) {
   if (val == null) return ema[key];
   const a = EMA_ALPHA[key];
@@ -537,7 +540,13 @@ function render(s) {
     $("battDetail").textContent = "Coulomb-Zähler · " + (s.voltage / BATTERY.cells).toFixed(2) + " V/Zelle · "
       + soc.consumed.toFixed(2) + " / " + PACK.capacityAh + " Ah";
   }
-  if (trip) sampleTrip(s, motorW, soc.soc);   // Live-Werte in die laufende Fahrt schreiben
+  if (trip) sampleTrip(s, {        // geglättete Analogwerte für die 1-Hz-Aufzeichnung
+    speed: speedS,
+    voltage: smooth("volt", s.voltage),
+    current: smooth("cur", s.current),
+    cadence: cadS == null ? 0 : cadS,
+    torque: smooth("torque", s.humanTorque),
+  });
   // Licht steuert das Theme: an → dunkel, aus → hell. Nur bei Änderung, damit manuelles Umschalten bis dahin bleibt.
   if (s.light !== lastLightState) {
     lastLightState = s.light;
@@ -692,6 +701,19 @@ $("battType").addEventListener("change", (e) => {
 // ================= Fahrten (Trips): Aufzeichnung, Speicherung (IndexedDB), Export =================
 let trip = null;            // aktuell laufende Aufzeichnung
 let tripTimer = null;
+let wrongCRCs = 0;          // kumulativer CRC-Fehlerzähler (für CSV)
+let geoWatch = null, lastPos = null;   // GPS
+function startGeo() {
+  if (!navigator.geolocation) { log("GPS nicht verfügbar."); return; }
+  try {
+    geoWatch = navigator.geolocation.watchPosition(
+      (p) => { lastPos = { lat: p.coords.latitude, lon: p.coords.longitude, alt: p.coords.altitude, acc: p.coords.accuracy, spd: p.coords.speed }; },
+      (err) => { log("GPS: " + err.message); },
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
+    );
+  } catch (e) { log("GPS-Fehler: " + e.message); }
+}
+function stopGeo() { if (geoWatch != null && navigator.geolocation) { try { navigator.geolocation.clearWatch(geoWatch); } catch (e) {} geoWatch = null; } lastPos = null; }
 function openDB() {
   return new Promise((res, rej) => {
     const r = indexedDB.open("eggrider", 1);
@@ -708,14 +730,17 @@ function fmtDur(sec) { const m = Math.floor(sec / 60), s = sec % 60; const h = M
 function store(t) { return { id: t.id, startTs: t.startTs, endTs: t.endTs || Date.now(), dist: t.dist, wh: t.wh, samples: t.samples, summary: t.summary }; }
 
 function startTrip() {
+  wrongCRCs = 0;
   trip = { id: Date.now(), startTs: Date.now(), samples: [], dist: 0, wh: 0, lastT: null, maxSpeed: 0 };
   $("btnTrip").textContent = "■ Fahrt stoppen"; $("btnTrip").classList.add("rec");
   tripTimer = setInterval(updateTripStat, 1000); updateTripStat();
+  startGeo();
   log("Fahrt-Aufzeichnung gestartet.");
 }
 async function stopTrip() {
   if (!trip) return;
   clearInterval(tripTimer); tripTimer = null;
+  stopGeo();
   const t = trip; trip = null;
   $("btnTrip").textContent = "● Fahrt aufzeichnen"; $("btnTrip").classList.remove("rec");
   if (t.samples.length >= 2) {
@@ -725,22 +750,26 @@ async function stopTrip() {
     renderTrips();
   } else { log("Fahrt verworfen (zu wenig Daten)."); }
 }
-function sampleTrip(s, motorW, socv) {
+function sampleTrip(s, sm) {
   const now = Date.now();
   if (trip.lastT != null) {
     const dtH = (now - trip.lastT) / 3600000;
-    trip.dist += (s.speed || 0) * dtH;
-    trip.wh += (s.voltage * s.current) * dtH;
+    trip.dist += (sm.speed || 0) * dtH;
+    trip.wh += (sm.voltage * sm.current) * dtH;
   }
   trip.lastT = now;
-  if (s.speed > trip.maxSpeed) trip.maxSpeed = s.speed;
+  if (sm.speed > trip.maxSpeed) trip.maxSpeed = sm.speed;
   const last = trip.samples[trip.samples.length - 1];
-  if (!last || now - (trip.startTs + last.t * 1000) >= 1000) {   // max ~1 Hz
+  if (!last || now - last.ts >= 1000) {   // genau ~1 geglättete Zeile pro Sekunde
     trip.samples.push({
-      t: Math.round((now - trip.startTs) / 1000),
-      spd: +(+s.speed).toFixed(1), v: +(+s.voltage).toFixed(1), i: +(+s.current).toFixed(1),
-      p: Math.round(motorW), cad: s.cadence == null ? "" : s.cadence, tq: s.humanTorque == null ? "" : s.humanTorque,
-      soc: socv == null ? "" : Math.round(socv), batt: s.battery, as: s.assist, md: s.mode,
+      ts: now, spd: sm.speed, v: sm.voltage, i: sm.current, dist: trip.dist,
+      alt: lastPos && lastPos.alt != null ? lastPos.alt : 0,
+      gps: lastPos && lastPos.spd != null ? lastPos.spd : 0,   // m/s, im CSV ×3.6
+      lat: lastPos ? lastPos.lat : null, lon: lastPos ? lastPos.lon : null,
+      acc: lastPos && lastPos.acc != null ? lastPos.acc : null,
+      batt: s.battery, crc: wrongCRCs, as: s.assist, md: s.mode, err: s.error,
+      dt: s.tDisplayRaw, mt: s.tMotorRaw, bt: s.tBatteryRaw, ct: s.tControllerRaw,
+      cad: sm.cadence, tq: sm.torque, hr: s.heartRateRaw,
     });
     if (trip.samples.length % 20 === 0) dbPut(store(trip)).catch(() => {});   // regelmäßig zwischensichern
   }
@@ -755,10 +784,22 @@ function tripSummary(t) {
   const avg = durS > 0 ? t.dist / (durS / 3600) : 0;
   return { durS, dist: t.dist, wh: t.wh, avgSpeed: avg, maxSpeed: t.maxSpeed };
 }
+// CSV im exakten Format der Original-App (Version 6, en-US-Zahlen mit Punkt).
 function tripCSV(t) {
-  const head = "t(s);Geschwindigkeit(km/h);Spannung(V);Strom(A);Leistung(W);Trittfrequenz(rpm);Drehmoment(Nm);SOC(%);Akku(%);Assist;Modus";
-  const rows = t.samples.map(x => [x.t, x.spd, x.v, x.i, x.p, x.cad, x.tq, x.soc, x.batt, x.as, (x.md ? "Offroad" : "Road")].join(";"));
-  return head + "\n" + rows.join("\n");
+  const head = "Time(HH:mm:ss.fff);Speed(km/h);Voltage(V);Current(A);Distance(km);Altitude(m);Date;SpeedGPS(km/h);Latitude;Longitude;AccuracyPosition(m);BatteryPercentage;WrongCRCs;AssistLevel;OffRoadMode;ErrorCode;DisplayTemp(C);MotorTemp(C);BatteryTemp(C);ControllerTemp(C);MotorPower(W);PedalCadence(rpm);HumanTorque(Nm);HeartRate(bpm)";
+  const p2 = (n, l) => String(n).padStart(l, "0");
+  const rows = t.samples.map(x => {
+    const d = new Date(x.ts != null ? x.ts : t.startTs + (x.t || 0) * 1000);
+    const time = p2(d.getHours(), 2) + ":" + p2(d.getMinutes(), 2) + ":" + p2(d.getSeconds(), 2) + "." + p2(d.getMilliseconds(), 3);
+    const date = d.getFullYear() + "-" + p2(d.getMonth() + 1, 2) + "-" + p2(d.getDate(), 2);
+    return [
+      time, (+x.spd).toFixed(2), (+x.v).toFixed(2), (+x.i).toFixed(2), (+x.dist).toFixed(2), (+(x.alt || 0)).toFixed(2),
+      date, (+(x.gps || 0) * 3.6).toFixed(2), x.lat == null ? "" : x.lat, x.lon == null ? "" : x.lon, x.acc == null ? "" : (+x.acc).toFixed(2),
+      x.batt, x.crc == null ? 0 : x.crc, x.as, x.md, x.err, x.dt, x.mt, x.bt, x.ct,
+      Math.round(x.v * x.i), Math.round(x.cad), Math.round(x.tq), x.hr,
+    ].join(";");
+  });
+  return head + "\n" + rows.join("\n") + "\n";
 }
 async function shareTrip(t) {
   const csv = tripCSV(t);
