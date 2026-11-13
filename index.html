@@ -10,6 +10,10 @@
     --bg: #0e1116; --panel: #171c24; --line: #262d38; --text: #e8ecf1; --muted: #8a94a3;
     --accent: #3ddc97; --warn: #ffb454; --bad: #ff6b6b; --accent2: #4aa8ff;
   }
+  :root[data-theme="light"] {
+    --bg: #eef1f5; --panel: #ffffff; --line: #d7dde4; --text: #0f141b; --muted: #576170;
+    --accent: #0e9a56; --warn: #b96c00; --bad: #d1352f; --accent2: #1f6fd0;
+  }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
     font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
@@ -17,6 +21,8 @@
   header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
   h1 { font-size: 18px; margin: 0; font-weight: 650; letter-spacing: .2px; }
   .ver { color: var(--muted); font-size: 12px; }
+  .htools { display: flex; align-items: center; gap: 10px; }
+  .iconbtn { min-height: 40px; padding: 8px 12px; font-size: 18px; background: transparent; border: 1px solid var(--line); color: var(--text); }
   .status { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line);
     border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
   .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
@@ -48,24 +54,25 @@
   .g-unit { color: var(--muted); font-size: 12px; margin-top: 3px; }
   .g-label { color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: .3px; margin-top: 2px; }
   .gauge.hero-g { margin-bottom: 12px; padding-bottom: 6px; }
-  .gauge.hero-g .g-num { font-size: 64px; }
-  .gauge.hero-g .g-label { font-size: 14px; }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 12px 12px 14px; margin-bottom: 12px; }
+  .gauge.hero-g .g-num { font-size: 88px; }
+  .gauge.hero-g .g-unit { font-size: 16px; }
+  .gauge.hero-g .g-label { font-size: 15px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 14px 14px 16px; margin-bottom: 12px; }
   .panel > .ph { color: var(--muted); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 10px; }
-  .panel .gg { display: flex; gap: 12px; }
-  .panel .gg .gcol { position: relative; flex: 1; min-width: 0; text-align: center; }
-  .panel .g-num { font-size: 40px; }
-  .g-seg { fill: none; stroke-width: 15; stroke-linecap: butt;
-    transition: stroke-dasharray .35s ease, stroke-dashoffset .35s ease; }
-  .pwrow { line-height: 1.08; }
-  .pw { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
-  .pwl { font-size: 12px; color: var(--muted); margin-left: 4px; }
-  .pwtot { font-size: 12px; color: var(--muted); margin-top: 5px; }
+  /* Leistungs-Balken (platzsparend statt Gauge) */
+  .ph2 { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .ph2 > span:first-child { color: var(--muted); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; }
+  .ph2 > span:last-child { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .pbar { display: flex; height: 26px; border-radius: 9px; overflow: hidden; background: var(--line); }
+  .pbar > i { display: block; height: 100%; width: 0; transition: width .35s ease; }
+  .pscale { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .pleg { display: flex; justify-content: space-between; margin-top: 8px; font-size: 17px; font-variant-numeric: tabular-nums; }
+  .pleg b { font-size: 22px; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; min-width: 0; }
-  .tile .k { color: var(--muted); font-size: 12px; }
-  .tile .v { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; }
-  .tile .v small { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 3px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 13px 15px; min-width: 0; }
+  .tile .k { color: var(--muted); font-size: 13px; }
+  .tile .v { font-size: 34px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .tile .v small { font-size: 15px; color: var(--muted); font-weight: 400; margin-left: 3px; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
   .chip { border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; font-size: 13px; color: var(--muted); }
   .chip.on { color: var(--bg); background: var(--accent); border-color: var(--accent); }
@@ -98,8 +105,10 @@
 <body>
 <main>
   <header>
-    <h1>Bike-Display Testseite</h1>
-    <span class="ver">v0.12 · nur lesen</span>
+    <div><h1>Bike-Display</h1><span class="ver">v0.14 · nur lesen</span></div>
+    <div class="htools">
+      <button class="iconbtn" id="btnTheme" aria-label="Hell/Dunkel umschalten">☀️</button>
+    </div>
   </header>
 
   <div class="alert" id="alert"></div>
@@ -135,18 +144,15 @@
   </section>
 
   <section class="panel">
-    <div class="ph">Leistung · Motor vs. Fahrer</div>
-    <div class="gauge" style="background:none;border:0;padding:0">
-      <svg viewBox="0 0 200 158" aria-hidden="true">
-        <path class="g-track" d="M25.5 143 A 86 86 0 1 1 174.5 143" pathLength="100"/>
-        <path class="g-seg" id="gPMotor" d="M25.5 143 A 86 86 0 1 1 174.5 143" pathLength="100" stroke-dasharray="0 100" style="stroke:var(--warn)"/>
-        <path class="g-seg" id="gPRider" d="M25.5 143 A 86 86 0 1 1 174.5 143" pathLength="100" stroke-dasharray="0 100" stroke-dashoffset="0" style="stroke:var(--accent2)"/>
-      </svg>
-      <div class="g-center">
-        <div class="pwrow"><span class="pw" id="watt" style="color:var(--warn)">–</span><span class="pwl">W Motor</span></div>
-        <div class="pwrow"><span class="pw" id="riderW" style="color:var(--accent2)">–</span><span class="pwl">W Fahrer</span></div>
-        <div class="pwtot"><span id="wattTot">–</span> W gesamt</div>
-      </div>
+    <div class="ph2"><span>Leistung</span><span id="wattTot">– W</span></div>
+    <div class="pbar">
+      <i id="pbMotor" style="background:var(--warn)"></i>
+      <i id="pbRider" style="background:var(--accent2)"></i>
+    </div>
+    <div class="pscale"><span>0</span><span>1000</span><span id="pScaleMax">2000 W</span></div>
+    <div class="pleg">
+      <span><b id="watt" style="color:var(--warn)">–</b> W Motor</span>
+      <span><b id="riderW" style="color:var(--accent2)">–</b> W Fahrer</span>
     </div>
   </section>
 
@@ -330,7 +336,7 @@ const fmt = (v, digits) => (v === null || v === undefined || Number.isNaN(v)) ? 
 // ---- Display-Einstellungen (22 29) ----
 const SET_LUT = {
   units: { 0: "metrisch (km)", 1: "imperial (mi)" },
-  secondary: { 0: "Strom (A)", 1: "Leistung (W)", 2: "Effizienz (Wh/km)" },
+  secondary: { 0: "Strom (A)", 1: "Leistung (W)", 2: "Effizienz (Wh/km)", 5: "Trip (km)" },
   assist: { 0: "9 Stufen", 3: "3 Stufen", 5: "5 Stufen" },
   shutdown: { 0: "nie", 1: "nach 5 Min", 2: "nach 2 Std", 3: "nach 10 Std" },
   modeLabels: { 0: "Road / Offroad", 1: "Eco / Sport" },
@@ -381,7 +387,7 @@ function renderSettings(o) {
 }
 
 // Gauge-Skalen (Anzeigeobergrenze der Arcs)
-const GAUGE = { speed: 60, motor: 1600, rider: 500 };
+const GAUGE = { speed: 60, motor: 1600, rider: 500, powerMax: 2000 };
 // Füllt eine Gauge: Anteil 0..1 als stroke-dasharray, Farbe optional.
 function setGauge(arcId, value, max, color) {
   const f = Math.max(0, Math.min(1, (value || 0) / max));
@@ -472,16 +478,15 @@ function render(s) {
   const riderS = smooth("rider", riderW === null ? 0 : riderW);
   $("speed").textContent = fmt(speedS, 1);
   setGauge("gSpeed", speedS, GAUGE.speed, band(speedS, 35, 50));
-  // Kombinierter Leistungs-Gauge: Segmentlängen = Anteil an der Gesamtleistung.
+  // Leistungs-Balken auf fester Skala 0…POWER_MAX: Balkenlänge = Gesamtleistung, Segmente = Motor/Fahrer-Anteil.
   const total = (motorS || 0) + (riderS || 0);
-  const mPct = total > 0 ? (motorS / total) * 100 : 0;
-  const rPct = total > 0 ? (riderS / total) * 100 : 0;
-  $("gPMotor").setAttribute("stroke-dasharray", mPct.toFixed(2) + " 100");
-  $("gPRider").setAttribute("stroke-dasharray", rPct.toFixed(2) + " 100");
-  $("gPRider").setAttribute("stroke-dashoffset", (-mPct).toFixed(2));   // hinter dem Motor-Segment beginnen
+  const mW = Math.max(0, Math.min(100, (motorS || 0) / GAUGE.powerMax * 100));
+  const rW = Math.max(0, Math.min(100 - mW, (riderS || 0) / GAUGE.powerMax * 100));
+  $("pbMotor").style.width = mW.toFixed(1) + "%";
+  $("pbRider").style.width = rW.toFixed(1) + "%";
   $("watt").textContent = fmt(motorS, 0);
   $("riderW").textContent = riderW === null ? "–" : fmt(riderS, 0);
-  $("wattTot").textContent = fmt(total, 0);
+  $("wattTot").textContent = fmt(total, 0) + " W";
 
   // Akku: Display-Wert als Balken, zusätzlich Spannungs-Schätzung (geglättet).
   const b = Math.max(0, Math.min(100, s.battery));
@@ -625,6 +630,24 @@ $("battType").addEventListener("change", (e) => {
   resetCoulomb();   // SOC mit neuer Zellzahl neu aus der Spannung ankern
   try { localStorage.setItem("battCells", e.target.value); } catch (x) {}
 });
+// Hell/Dunkel-Umschalter (für bessere Lesbarkeit bei Sonne). Wahl wird lokal gemerkt.
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  $("btnTheme").textContent = (t === "light") ? "🌙" : "☀️";
+  const m = document.querySelector('meta[name="theme-color"]');
+  if (m) m.setAttribute("content", t === "light" ? "#eef1f5" : "#0e1116");
+}
+let theme = "dark";
+try {
+  theme = localStorage.getItem("theme") || (matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+} catch (e) {}
+applyTheme(theme);
+$("btnTheme").addEventListener("click", () => {
+  theme = (theme === "light") ? "dark" : "light";
+  applyTheme(theme);
+  try { localStorage.setItem("theme", theme); } catch (e) {}
+});
+
 let recording = false;
 $("btnConnect").addEventListener("click", () => {
   if (device && device.gatt.connected) { running = false; device.gatt.disconnect(); }
