@@ -32,6 +32,16 @@
   .htools { display: flex; align-items: center; gap: 10px; }
   .ctl { display: flex; gap: 8px; margin-bottom: 12px; }
   .ctl button { flex: 1; }
+  .tripbar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .tripbar button { flex: none; }
+  #btnTrip.rec { background: var(--bad); color: #fff; border-color: var(--bad); }
+  .tripstat { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 15px; }
+  .trip { border-top: 1px solid var(--line); padding: 11px 0; }
+  .trip:first-child { border-top: 0; }
+  .trip .th { display: flex; justify-content: space-between; font-weight: 650; }
+  .trip .ts { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  .trip .ta { display: flex; gap: 8px; margin-top: 9px; }
+  .trip .ta button { flex: none; padding: 7px 13px; min-height: 38px; font-size: 14px; }
   .iconbtn { min-height: 40px; padding: 8px 12px; font-size: 18px; background: transparent; border: 1px solid var(--line); color: var(--text); }
   .status { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line);
     border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
@@ -49,7 +59,7 @@
     text-align: center; margin-bottom: 12px; }
   .hero .num { font-size: 84px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -2px; }
   .hero .unit { color: var(--muted); font-size: 14px; margin-top: 4px; }
-  .bar { height: 10px; background: var(--line); border-radius: 6px; overflow: hidden; margin-top: 14px; }
+  .bar { height: 28px; background: var(--line); border-radius: 9px; overflow: hidden; margin-top: 0; }
   .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
   .barlbl { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 6px; }
   /* Gauges */
@@ -64,7 +74,7 @@
   .g-unit { color: var(--muted); font-size: 12px; margin-top: 3px; }
   .g-label { color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: .3px; margin-top: 2px; }
   .gauge.hero-g { margin-bottom: 12px; padding-bottom: 6px; }
-  .gauge.hero-g .g-num { font-size: 88px; }
+  .gauge.hero-g .g-num { font-size: 70px; }
   .gauge.hero-g .g-unit { font-size: 16px; }
   .gauge.hero-g .g-label { font-size: 15px; }
   .g-track2 { fill: none; stroke: var(--line); stroke-width: 15; stroke-linecap: round; }
@@ -76,11 +86,11 @@
   /* Leistungs-Balken: Verhältnis Motor zu Fahrer (Segmente = Anteil an der Gesamtleistung, Summe 100 %) */
   .ph2 { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
   .ph2 > span:first-child { color: var(--muted); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; }
-  .ph2 > span:last-child { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .ph2 > span:last-child { font-size: 27px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .pbar { display: flex; height: 28px; border-radius: 9px; overflow: hidden; background: var(--line); }
   .pbar > i { display: block; height: 100%; width: 0; transition: width .35s ease; }
-  .pleg { display: flex; justify-content: space-between; margin-top: 10px; font-size: 17px; font-variant-numeric: tabular-nums; }
-  .pleg b { font-size: 24px; }
+  .pleg { display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .pleg b { font-size: 29px; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
   .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 13px 15px; min-width: 0; }
   .tile .k { color: var(--muted); font-size: 13px; }
@@ -124,6 +134,11 @@
     <div id="statusText">Nicht verbunden<small id="statusSub">Display einschalten, dann „Verbinden“ tippen.</small></div>
     <button id="btnConnect">Verbinden</button>
     <button class="iconbtn" id="btnTheme" aria-label="Hell/Dunkel umschalten">☀️</button>
+  </div>
+
+  <div class="tripbar" id="tripbar" hidden>
+    <button class="ghost" id="btnTrip">● Fahrt aufzeichnen</button>
+    <div class="tripstat"><span id="tripTime">00:00</span> · <span id="tripDist">0,0 km</span></div>
   </div>
 
   <section class="gauge hero-g">
@@ -182,6 +197,11 @@
     <span class="chip" id="cFrame">Format: –</span>
   </div>
 
+  <details class="setpanel" id="tripsPanel">
+    <summary>Gespeicherte Fahrten</summary>
+    <div id="tripsBody"><div class="setrow"><span>noch keine Fahrten</span><span></span></div></div>
+  </details>
+
   <details class="setpanel" id="setPanel" open>
     <summary>Display-Einstellungen</summary>
     <div id="setBody"><div class="setrow"><span>wird nach dem Verbinden gelesen …</span><span></span></div></div>
@@ -198,7 +218,7 @@
   </details>
   <p class="note">Diese Seite liest nur Werte aus dem Display. Sie ändert keine Einstellungen an Display oder Motor.
   Bildschirm bitte eingeschaltet lassen – im Hintergrund trennt der Browser die Verbindung.</p>
-  <div class="foot">Bike-Display · v0.21 · nur lesen</div>
+  <div class="foot">Bike-Display · v0.23 · nur lesen</div>
 </main>
 
 <script>
@@ -517,6 +537,7 @@ function render(s) {
     $("battDetail").textContent = "Coulomb-Zähler · " + (s.voltage / BATTERY.cells).toFixed(2) + " V/Zelle · "
       + soc.consumed.toFixed(2) + " / " + PACK.capacityAh + " Ah";
   }
+  if (trip) sampleTrip(s, motorW, soc.soc);   // Live-Werte in die laufende Fahrt schreiben
   // Licht steuert das Theme: an → dunkel, aus → hell. Nur bei Änderung, damit manuelles Umschalten bis dahin bleibt.
   if (s.light !== lastLightState) {
     lastLightState = s.light;
@@ -576,6 +597,7 @@ async function connect() {
     log("Verbunden, Benachrichtigungen aktiv.");
     setStatus("on", "Verbunden", device.name || "");
     $("btnConnect").textContent = "Trennen";
+    $("tripbar").hidden = false;
     try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
     resetSmoothing();
     resetCoulomb();
@@ -598,6 +620,8 @@ async function connect() {
 }
 function onDisconnected() {
   running = false;
+  if (trip) stopTrip();          // laufende Fahrt sichern
+  $("tripbar").hidden = true;
   log("Verbindung getrennt.");
   setStatus("err", "Getrennt", "Zum erneuten Verbinden tippen.");
   $("btnConnect").textContent = "Verbinden";
@@ -665,6 +689,112 @@ $("battType").addEventListener("change", (e) => {
   resetCoulomb();   // SOC mit neuer Zellzahl neu aus der Spannung ankern
   try { localStorage.setItem("battCells", e.target.value); } catch (x) {}
 });
+// ================= Fahrten (Trips): Aufzeichnung, Speicherung (IndexedDB), Export =================
+let trip = null;            // aktuell laufende Aufzeichnung
+let tripTimer = null;
+function openDB() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open("eggrider", 1);
+    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains("trips")) r.result.createObjectStore("trips", { keyPath: "id" }); };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function dbPut(t) { const d = await openDB(); return new Promise((res, rej) => { const tx = d.transaction("trips", "readwrite"); tx.objectStore("trips").put(t); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); }
+async function dbAll() { const d = await openDB(); return new Promise((res, rej) => { const tx = d.transaction("trips", "readonly"); const q = tx.objectStore("trips").getAll(); q.onsuccess = () => res(q.result || []); q.onerror = () => rej(q.error); }); }
+async function dbDel(id) { const d = await openDB(); return new Promise((res, rej) => { const tx = d.transaction("trips", "readwrite"); tx.objectStore("trips").delete(id); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); }
+
+function fmtDur(sec) { const m = Math.floor(sec / 60), s = sec % 60; const h = Math.floor(m / 60); return (h ? h + ":" + String(m % 60).padStart(2, "0") : m) + ":" + String(s).padStart(2, "0"); }
+function store(t) { return { id: t.id, startTs: t.startTs, endTs: t.endTs || Date.now(), dist: t.dist, wh: t.wh, samples: t.samples, summary: t.summary }; }
+
+function startTrip() {
+  trip = { id: Date.now(), startTs: Date.now(), samples: [], dist: 0, wh: 0, lastT: null, maxSpeed: 0 };
+  $("btnTrip").textContent = "■ Fahrt stoppen"; $("btnTrip").classList.add("rec");
+  tripTimer = setInterval(updateTripStat, 1000); updateTripStat();
+  log("Fahrt-Aufzeichnung gestartet.");
+}
+async function stopTrip() {
+  if (!trip) return;
+  clearInterval(tripTimer); tripTimer = null;
+  const t = trip; trip = null;
+  $("btnTrip").textContent = "● Fahrt aufzeichnen"; $("btnTrip").classList.remove("rec");
+  if (t.samples.length >= 2) {
+    t.endTs = Date.now(); t.summary = tripSummary(t);
+    try { await dbPut(store(t)); log("Fahrt gespeichert (" + t.samples.length + " Punkte, " + t.dist.toFixed(1) + " km)."); }
+    catch (e) { log("Fahrt speichern fehlgeschlagen: " + e.message); }
+    renderTrips();
+  } else { log("Fahrt verworfen (zu wenig Daten)."); }
+}
+function sampleTrip(s, motorW, socv) {
+  const now = Date.now();
+  if (trip.lastT != null) {
+    const dtH = (now - trip.lastT) / 3600000;
+    trip.dist += (s.speed || 0) * dtH;
+    trip.wh += (s.voltage * s.current) * dtH;
+  }
+  trip.lastT = now;
+  if (s.speed > trip.maxSpeed) trip.maxSpeed = s.speed;
+  const last = trip.samples[trip.samples.length - 1];
+  if (!last || now - (trip.startTs + last.t * 1000) >= 1000) {   // max ~1 Hz
+    trip.samples.push({
+      t: Math.round((now - trip.startTs) / 1000),
+      spd: +(+s.speed).toFixed(1), v: +(+s.voltage).toFixed(1), i: +(+s.current).toFixed(1),
+      p: Math.round(motorW), cad: s.cadence == null ? "" : s.cadence, tq: s.humanTorque == null ? "" : s.humanTorque,
+      soc: socv == null ? "" : Math.round(socv), batt: s.battery, as: s.assist, md: s.mode,
+    });
+    if (trip.samples.length % 20 === 0) dbPut(store(trip)).catch(() => {});   // regelmäßig zwischensichern
+  }
+}
+function updateTripStat() {
+  if (!trip) return;
+  $("tripTime").textContent = fmtDur(Math.round((Date.now() - trip.startTs) / 1000));
+  $("tripDist").textContent = trip.dist.toFixed(1).replace(".", ",") + " km";
+}
+function tripSummary(t) {
+  const durS = Math.round((t.endTs - t.startTs) / 1000);
+  const avg = durS > 0 ? t.dist / (durS / 3600) : 0;
+  return { durS, dist: t.dist, wh: t.wh, avgSpeed: avg, maxSpeed: t.maxSpeed };
+}
+function tripCSV(t) {
+  const head = "t(s);Geschwindigkeit(km/h);Spannung(V);Strom(A);Leistung(W);Trittfrequenz(rpm);Drehmoment(Nm);SOC(%);Akku(%);Assist;Modus";
+  const rows = t.samples.map(x => [x.t, x.spd, x.v, x.i, x.p, x.cad, x.tq, x.soc, x.batt, x.as, (x.md ? "Offroad" : "Road")].join(";"));
+  return head + "\n" + rows.join("\n");
+}
+async function shareTrip(t) {
+  const csv = tripCSV(t);
+  const name = "eggrider_" + new Date(t.startTs).toISOString().slice(0, 16).replace(/[:T]/g, "-") + ".csv";
+  const file = new File([csv], name, { type: "text/csv" });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: "EggRider Fahrt", text: "Fahrt vom " + new Date(t.startTs).toLocaleString("de-AT") });
+      return;
+    }
+  } catch (e) { if (e && e.name === "AbortError") return; }
+  // Fallback: Download
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+async function renderTrips() {
+  let trips = [];
+  try { trips = await dbAll(); } catch (e) { $("tripsBody").innerHTML = "<div class=\"setrow\"><span>Speicher nicht verfügbar</span><span></span></div>"; return; }
+  trips.sort((a, b) => b.startTs - a.startTs);
+  if (!trips.length) { $("tripsBody").innerHTML = "<div class=\"setrow\"><span>noch keine Fahrten</span><span></span></div>"; return; }
+  const box = $("tripsBody"); box.innerHTML = "";
+  for (const t of trips) {
+    const sm = t.summary || tripSummary(t);
+    const d = new Date(t.startTs);
+    const el = document.createElement("div"); el.className = "trip";
+    el.innerHTML = "<div class=\"th\"><span>" + d.toLocaleDateString("de-AT") + " " + d.toLocaleTimeString("de-AT", { hour: "2-digit", minute: "2-digit" }) + "</span><span>" + sm.dist.toFixed(1).replace(".", ",") + " km</span></div>"
+      + "<div class=\"ts\">" + fmtDur(sm.durS) + " · ø " + sm.avgSpeed.toFixed(0) + " km/h · max " + sm.maxSpeed.toFixed(0) + " km/h · " + Math.round(sm.wh) + " Wh · " + t.samples.length + " Punkte</div>"
+      + "<div class=\"ta\"></div>";
+    const ta = el.querySelector(".ta");
+    const bs = document.createElement("button"); bs.textContent = "Senden als …"; bs.addEventListener("click", () => shareTrip(t)); ta.appendChild(bs);
+    const bd = document.createElement("button"); bd.className = "ghost"; bd.textContent = "Löschen"; bd.addEventListener("click", async () => { if (confirm("Fahrt löschen?")) { await dbDel(t.id); renderTrips(); } }); ta.appendChild(bd);
+    box.appendChild(el);
+  }
+}
+
 // Hell/Dunkel-Umschalter (für bessere Lesbarkeit bei Sonne). Wahl wird lokal gemerkt.
 function updateMeta() {
   const light = document.documentElement.getAttribute("data-theme") === "light";
@@ -687,6 +817,14 @@ $("btnTheme").addEventListener("click", () => {
   theme = (theme === "light") ? "dark" : "light";
   applyTheme(theme);
   try { localStorage.setItem("theme", theme); } catch (e) {}
+});
+$("btnTrip").addEventListener("click", () => { if (trip) stopTrip(); else startTrip(); });
+renderTrips();
+// Bildschirm-Sperre nach App-Wechsel wieder anfordern (hält bei sichtbarem Display die Verbindung).
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState === "visible" && running && "wakeLock" in navigator) {
+    try { wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
+  }
 });
 
 let recording = false;
