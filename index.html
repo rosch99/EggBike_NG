@@ -101,7 +101,7 @@
     <span class="chip" id="cFrame">Format: –</span>
   </div>
 
-  <details id="logBox">
+  <details id="logBox" open>
     <summary>Protokoll (für Rückmeldung an die Entwicklung)</summary>
     <div class="row">
       <button class="ghost" id="btnCopy">Protokoll kopieren</button>
@@ -274,24 +274,45 @@ function render(s) {
 }
 
 // ---- Main flow ----
+// Bricht einen hängenden Schritt nach ms ab, damit nichts endlos wartet.
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new DOMException(label + " nach " + ms + " ms ohne Antwort", "TimeoutError")), ms)),
+  ]);
+}
+async function gattConnect(dev) {
+  try {
+    return await withTimeout(dev.gatt.connect(), 10000, "GATT-Verbindung");
+  } catch (e) {
+    log("Erster Verbindungsversuch: " + e.name + " – " + e.message + ". Zweiter Versuch …");
+    try { dev.gatt.disconnect(); } catch (x) {}
+    await new Promise((r) => setTimeout(r, 1200));
+    return await withTimeout(dev.gatt.connect(), 10000, "GATT-Verbindung (2. Versuch)");
+  }
+}
 async function connect() {
   $("btnConnect").disabled = true;
   try {
     setStatus("busy", "Gerät wählen …", "Im Dialog das Display antippen.");
+    log("Öffne Geräteauswahl …");
     device = await navigator.bluetooth.requestDevice({
       filters: [{ services: [SVC] }, { namePrefix: "EggRider" }],
       optionalServices: [SVC],
     });
-    log("Gewähltes Gerät: \"" + (device.name || "(ohne Namen)") + "\"");
+    log("Gewähltes Gerät: \"" + (device.name || "(ohne Namen)") + "\"  id=" + (device.id || "?"));
     device.addEventListener("gattserverdisconnected", onDisconnected);
     setStatus("busy", "Verbinde …", device.name || "");
-    const server = await device.gatt.connect();
-    const svc = await server.getPrimaryService(SVC);
-    chWrite = await svc.getCharacteristic(CH_WRITE);
-    chNotify = await svc.getCharacteristic(CH_NOTIFY);
+    log("Verbinde mit GATT-Server …");
+    const server = await gattConnect(device);
+    log("GATT verbunden. Suche Dienst …");
+    const svc = await withTimeout(server.getPrimaryService(SVC), 8000, "Dienstsuche");
+    log("Dienst gefunden. Suche Merkmale …");
+    chWrite = await withTimeout(svc.getCharacteristic(CH_WRITE), 8000, "Write-Merkmal");
+    chNotify = await withTimeout(svc.getCharacteristic(CH_NOTIFY), 8000, "Notify-Merkmal");
     log("Write-Eigenschaften: " + JSON.stringify({ write: chWrite.properties.write, writeWithoutResponse: chWrite.properties.writeWithoutResponse }));
     chNotify.addEventListener("characteristicvaluechanged", onNotify);
-    await chNotify.startNotifications();
+    await withTimeout(chNotify.startNotifications(), 8000, "Benachrichtigungen aktivieren");
     log("Verbunden, Benachrichtigungen aktiv.");
     setStatus("on", "Verbunden", device.name || "");
     $("btnConnect").textContent = "Trennen";
@@ -299,8 +320,18 @@ async function connect() {
     running = true;
     loop();
   } catch (e) {
-    if (e && e.name === "NotFoundError") { setStatus("", "Nicht verbunden", "Kein Gerät gewählt."); }
-    else { log("FEHLER beim Verbinden: " + (e && e.name) + " – " + (e && e.message)); setStatus("err", "Verbindung fehlgeschlagen", (e && e.message) || ""); }
+    const name = e && e.name, msg = (e && e.message) || "";
+    if (name === "NotFoundError" && /chooser|cancel|User cancelled/i.test(msg)) {
+      setStatus("", "Nicht verbunden", "Kein Gerät gewählt.");
+    } else {
+      log("FEHLER beim Verbinden: " + name + " – " + msg);
+      let hint = "";
+      if (name === "TimeoutError" || name === "NetworkError") hint = "Display evtl. noch mit der Original-App verbunden. Diese ganz schließen, Bluetooth aus/ein, Display aus/ein.";
+      if (name === "NotFoundError") hint = "Kein passendes Gerät gefunden. Display eingeschaltet und in Reichweite?";
+      if (hint) log("Hinweis: " + hint);
+      setStatus("err", "Verbindung fehlgeschlagen", hint || msg);
+    }
+    try { if (device && device.gatt && device.gatt.connected) device.gatt.disconnect(); } catch (x) {}
   } finally { $("btnConnect").disabled = false; }
 }
 function onDisconnected() {
