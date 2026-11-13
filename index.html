@@ -55,6 +55,12 @@
   .panel .gg { display: flex; gap: 12px; }
   .panel .gg .gcol { position: relative; flex: 1; min-width: 0; text-align: center; }
   .panel .g-num { font-size: 40px; }
+  .g-seg { fill: none; stroke-width: 15; stroke-linecap: butt;
+    transition: stroke-dasharray .35s ease, stroke-dashoffset .35s ease; }
+  .pwrow { line-height: 1.08; }
+  .pw { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+  .pwl { font-size: 12px; color: var(--muted); margin-left: 4px; }
+  .pwtot { font-size: 12px; color: var(--muted); margin-top: 5px; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
   .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; min-width: 0; }
   .tile .k { color: var(--muted); font-size: 12px; }
@@ -75,6 +81,8 @@
   summary::before { content: "▸ "; }
   details[open] summary::before { content: "▾ "; }
   details[open] summary { margin-bottom: 8px; }
+  select { font: inherit; font-size: 12px; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 8px; padding: 3px 8px; }
   .note { color: var(--muted); font-size: 13px; margin-top: 10px; }
   .alert { background: #2a1a1a; border: 1px solid #5a2a2a; color: #ffc9c9; border-radius: 12px; padding: 12px 14px;
     margin-bottom: 12px; font-size: 14px; display: none; }
@@ -84,7 +92,7 @@
 <main>
   <header>
     <h1>Bike-Display Testseite</h1>
-    <span class="ver">v0.7 · nur lesen</span>
+    <span class="ver">v0.11 · nur lesen</span>
   </header>
 
   <div class="alert" id="alert"></div>
@@ -106,27 +114,31 @@
 
   <section class="hero" style="padding:14px 16px 12px">
     <div class="bar"><i id="battBar"></i></div>
-    <div class="barlbl"><span>Akku</span><span id="battTxt">– %</span></div>
+    <div class="barlbl"><span>Akku (Display)</span><span id="battTxt">– %</span></div>
+    <div class="barlbl" style="margin-top:4px">
+      <span id="battEst" style="color:var(--accent2)">–</span>
+      <select id="battType" aria-label="Akkutyp">
+        <option value="10">36 V (10S)</option>
+        <option value="13" selected>48 V (13S)</option>
+        <option value="14">52 V (14S)</option>
+        <option value="16">60 V (16S)</option>
+      </select>
+    </div>
+    <div class="barlbl" style="margin-top:4px"><span id="battDetail"></span><span></span></div>
   </section>
 
   <section class="panel">
-    <div class="ph">Leistung</div>
-    <div class="gg">
-      <div class="gcol">
-        <svg viewBox="0 0 200 158" aria-hidden="true">
-          <path class="g-track" d="M25.5 143 A 86 86 0 1 1 174.5 143" pathLength="100"/>
-          <path class="g-val" id="gMotor" d="M25.5 143 A 86 86 0 1 1 174.5 143" pathLength="100" stroke-dasharray="0 100"/>
-        </svg>
-        <div class="g-center"><div class="g-num" id="watt">–</div><div class="g-unit">W</div></div>
-        <div class="g-label">Motor</div>
-      </div>
-      <div class="gcol">
-        <svg viewBox="0 0 200 158" aria-hidden="true">
-          <path class="g-track" d="M25.5 143 A 86 86 0 1 1 174.5 143" pathLength="100"/>
-          <path class="g-val" id="gRider" d="M25.5 143 A 86 86 0 1 1 174.5 143" pathLength="100" stroke-dasharray="0 100" style="stroke:var(--accent2)"/>
-        </svg>
-        <div class="g-center"><div class="g-num" id="riderW">–</div><div class="g-unit">W</div></div>
-        <div class="g-label">Fahrer</div>
+    <div class="ph">Leistung · Motor vs. Fahrer</div>
+    <div class="gauge" style="background:none;border:0;padding:0">
+      <svg viewBox="0 0 200 158" aria-hidden="true">
+        <path class="g-track" d="M25.5 143 A 86 86 0 1 1 174.5 143" pathLength="100"/>
+        <path class="g-seg" id="gPMotor" d="M25.5 143 A 86 86 0 1 1 174.5 143" pathLength="100" stroke-dasharray="0 100" style="stroke:var(--warn)"/>
+        <path class="g-seg" id="gPRider" d="M25.5 143 A 86 86 0 1 1 174.5 143" pathLength="100" stroke-dasharray="0 100" stroke-dashoffset="0" style="stroke:var(--accent2)"/>
+      </svg>
+      <div class="g-center">
+        <div class="pwrow"><span class="pw" id="watt" style="color:var(--warn)">–</span><span class="pwl">W Motor</span></div>
+        <div class="pwrow"><span class="pw" id="riderW" style="color:var(--accent2)">–</span><span class="pwl">W Fahrer</span></div>
+        <div class="pwtot"><span id="wattTot">–</span> W gesamt</div>
       </div>
     </div>
   </section>
@@ -303,7 +315,7 @@ function decodeV01(rx) {
 const fmt = (v, digits) => (v === null || v === undefined || Number.isNaN(v)) ? "–" : v.toFixed(digits);
 
 // Gauge-Skalen (Anzeigeobergrenze der Arcs)
-const GAUGE = { speed: 50, motor: 1200, rider: 400 };
+const GAUGE = { speed: 60, motor: 1600, rider: 500 };
 // Füllt eine Gauge: Anteil 0..1 als stroke-dasharray, Farbe optional.
 function setGauge(arcId, value, max, color) {
   const f = Math.max(0, Math.min(1, (value || 0) / max));
@@ -321,26 +333,100 @@ function riderPower(torqueNm, cadenceRpm) {
   return torqueNm * cadenceRpm * (2 * Math.PI / 60);
 }
 
+// ---- Glättung (exponentiell gleitender Mittelwert) ----
+// alpha klein = ruhiger/träger, groß = schneller/zappeliger. Pro Messgröße abgestimmt.
+const EMA_ALPHA = { speed: 0.4, motor: 0.3, rider: 0.25, soc: 0.05 };
+const ema = { speed: null, motor: null, rider: null, soc: null };
+function resetSmoothing() { ema.speed = ema.motor = ema.rider = ema.soc = null; }
+function smooth(key, val) {
+  if (val == null) return ema[key];
+  const a = EMA_ALPHA[key];
+  ema[key] = (ema[key] == null) ? val : ema[key] + a * (val - ema[key]);
+  return ema[key];
+}
+
+// ---- Akkustand aus Spannung (genauer als der rohe Display-Wert) ----
+// Zellzahl per Auswahl (10S=36V, 13S=48V, 14S=52V, 16S=60V), Innenwiderstand grob.
+const BATTERY = { cells: 13, internalOhm: 0.15 };
+// Ruhespannung je Zelle → SOC (%), typische Li-Ion-NMC-Entladekurve.
+const SOC_CURVE = [
+  [3.00, 0], [3.30, 5], [3.45, 10], [3.55, 20], [3.63, 30], [3.70, 40],
+  [3.75, 50], [3.82, 60], [3.90, 70], [3.97, 80], [4.07, 90], [4.15, 97], [4.20, 100],
+];
+// Klemmenspannung + I·R → geschätzte Ruhespannung, dann über die Kurve auf SOC.
+function socFromVoltage(packV, currentA) {
+  if (!packV) return null;
+  const restV = packV + (currentA || 0) * BATTERY.internalOhm;   // Entladung senkt die Klemmenspannung → zurückrechnen
+  const cell = restV / BATTERY.cells;
+  const c = SOC_CURVE;
+  if (cell <= c[0][0]) return 0;
+  if (cell >= c[c.length - 1][0]) return 100;
+  for (let i = 1; i < c.length; i++) {
+    if (cell <= c[i][0]) {
+      const [v0, p0] = c[i - 1], [v1, p1] = c[i];
+      return p0 + (p1 - p0) * (cell - v0) / (v1 - v0);
+    }
+  }
+  return 100;
+}
+
+// ---- Coulomb-Zählung: genauer SOC über verbrauchte Amperestunden ----
+const PACK = { capacityAh: 21 };
+let coulomb = { soc: null, consumedAh: 0, lastT: null };
+function resetCoulomb() { coulomb = { soc: null, consumedAh: 0, lastT: null }; }
+function updateSoc(voltage, current) {
+  const vSoc = socFromVoltage(voltage, current);
+  const now = (typeof performance !== "undefined" ? performance.now() : Date.now());
+  if (coulomb.soc == null) { coulomb.soc = vSoc; coulomb.lastT = now; return { soc: vSoc, vSoc, consumed: 0 }; }
+  const dtH = Math.min(5, (now - coulomb.lastT) / 1000) / 3600;   // dt in Stunden, nach Pausen auf 5 s begrenzt
+  coulomb.lastT = now;
+  const i = Math.max(0, current || 0);
+  const dAh = i * dtH;
+  coulomb.consumedAh += dAh;
+  coulomb.soc -= dAh / PACK.capacityAh * 100;
+  if (i < 1 && vSoc != null) coulomb.soc += 0.03 * (vSoc - coulomb.soc);   // Re-Anker bei Ruhe über die Spannung
+  coulomb.soc = Math.max(0, Math.min(100, coulomb.soc));
+  return { soc: coulomb.soc, vSoc, consumed: coulomb.consumedAh };
+}
+
 function render(s) {
-  $("speed").textContent = fmt(s.speed, 1);
+  // Rohwerte in die Kacheln (für Diagnose exakt), geglättete Werte in die Gauges.
   $("volt").textContent = fmt(s.voltage, 1);
   $("amp").textContent = fmt(s.current, 1);
-  const motorW = s.voltage * s.current;
-  $("watt").textContent = fmt(motorW, 0);
-  const riderW = riderPower(s.humanTorque, s.cadence);
-  $("riderW").textContent = riderW === null ? "–" : fmt(riderW, 0);
   $("torque").textContent = (s.humanTorque === null || s.humanTorque === undefined) ? "–" : s.humanTorque;
   $("assist").textContent = s.assist;
   $("mode").textContent = s.mode ? "Offroad" : "Road";
   $("tMotor").textContent = (s.tMotor === null || s.tMotor === undefined) ? "–" : fmt(s.tMotor, 0);
   $("cad").textContent = (s.cadence === null || s.cadence === undefined) ? "–" : s.cadence;
-  // Gauges
-  setGauge("gSpeed", s.speed, GAUGE.speed, band(s.speed, 30, 43));
-  setGauge("gMotor", motorW, GAUGE.motor, band(motorW, 600, 1000));
-  setGauge("gRider", riderW || 0, GAUGE.rider, "var(--accent2)");
+
+  const motorW = s.voltage * s.current;
+  const riderW = riderPower(s.humanTorque, s.cadence);
+  const speedS = smooth("speed", s.speed);
+  const motorS = smooth("motor", motorW);
+  const riderS = smooth("rider", riderW === null ? 0 : riderW);
+  $("speed").textContent = fmt(speedS, 1);
+  setGauge("gSpeed", speedS, GAUGE.speed, band(speedS, 35, 50));
+  // Kombinierter Leistungs-Gauge: Segmentlängen = Anteil an der Gesamtleistung.
+  const total = (motorS || 0) + (riderS || 0);
+  const mPct = total > 0 ? (motorS / total) * 100 : 0;
+  const rPct = total > 0 ? (riderS / total) * 100 : 0;
+  $("gPMotor").setAttribute("stroke-dasharray", mPct.toFixed(2) + " 100");
+  $("gPRider").setAttribute("stroke-dasharray", rPct.toFixed(2) + " 100");
+  $("gPRider").setAttribute("stroke-dashoffset", (-mPct).toFixed(2));   // hinter dem Motor-Segment beginnen
+  $("watt").textContent = fmt(motorS, 0);
+  $("riderW").textContent = riderW === null ? "–" : fmt(riderS, 0);
+  $("wattTot").textContent = fmt(total, 0);
+
+  // Akku: Display-Wert als Balken, zusätzlich Spannungs-Schätzung (geglättet).
   const b = Math.max(0, Math.min(100, s.battery));
   $("battBar").style.width = b + "%";
   $("battTxt").textContent = s.battery + " %";
+  const soc = updateSoc(s.voltage, s.current);
+  if (soc.soc != null) {
+    $("battEst").textContent = "≈ " + soc.soc.toFixed(0) + " % (Coulomb-Zähler)";
+    $("battDetail").textContent = (s.voltage / BATTERY.cells).toFixed(2) + " V/Zelle · "
+      + soc.consumed.toFixed(2) + " / " + PACK.capacityAh + " Ah verbraucht";
+  }
   $("cLight").className = "chip" + (s.light ? " on" : "");
   $("cLock").className = "chip" + (s.lock ? " on" : "");
   $("cCruise").className = "chip" + (s.cruise ? " on" : "");
@@ -394,6 +480,8 @@ async function connect() {
     setStatus("on", "Verbunden", device.name || "");
     $("btnConnect").textContent = "Trennen";
     try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
+    resetSmoothing();
+    resetCoulomb();
     running = true;
     loop();
   } catch (e) {
@@ -454,6 +542,13 @@ async function loop() {
   }
 }
 
+// Akkutyp merken (nur lokal im Browser, rein zur Bequemlichkeit).
+try { const saved = localStorage.getItem("battCells"); if (saved) { BATTERY.cells = +saved; $("battType").value = saved; } } catch (e) {}
+$("battType").addEventListener("change", (e) => {
+  BATTERY.cells = +e.target.value;
+  resetCoulomb();   // SOC mit neuer Zellzahl neu aus der Spannung ankern
+  try { localStorage.setItem("battCells", e.target.value); } catch (x) {}
+});
 let recording = false;
 $("btnConnect").addEventListener("click", () => {
   if (device && device.gatt.connected) { running = false; device.gatt.disconnect(); }
