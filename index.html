@@ -83,6 +83,13 @@
   details[open] summary { margin-bottom: 8px; }
   select { font: inherit; font-size: 12px; color: var(--text); background: var(--bg); border: 1px solid var(--line);
     border-radius: 8px; padding: 3px 8px; }
+  .setpanel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 4px 14px 10px; margin-bottom: 12px; }
+  .setpanel > summary { color: var(--text); font-weight: 650; font-size: 15px; padding: 12px 0; }
+  .setrow { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .setrow:first-child { border-top: 0; }
+  .setrow > span:first-child { color: var(--muted); }
+  .setrow > span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  .setsub { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; margin-top: 10px; padding-top: 6px; }
   .note { color: var(--muted); font-size: 13px; margin-top: 10px; }
   .alert { background: #2a1a1a; border: 1px solid #5a2a2a; color: #ffc9c9; border-radius: 12px; padding: 12px 14px;
     margin-bottom: 12px; font-size: 14px; display: none; }
@@ -92,7 +99,7 @@
 <main>
   <header>
     <h1>Bike-Display Testseite</h1>
-    <span class="ver">v0.11 · nur lesen</span>
+    <span class="ver">v0.12 · nur lesen</span>
   </header>
 
   <div class="alert" id="alert"></div>
@@ -161,6 +168,11 @@
     <span class="chip" id="cFrame">Format: –</span>
   </div>
 
+  <details class="setpanel" id="setPanel" open>
+    <summary>Display-Einstellungen</summary>
+    <div id="setBody"><div class="setrow"><span>wird nach dem Verbinden gelesen …</span><span></span></div></div>
+  </details>
+
   <details id="logBox" open>
     <summary>Protokoll (für Rückmeldung an die Entwicklung)</summary>
     <div class="row">
@@ -185,6 +197,7 @@ const REQ = {
   identity: { name: "DisplayIdentity", cmd: [0x22, 0x12], len: 14, timeout: 1500 },
   liveV04:  { name: "VehStatusV04",    cmd: [0x22, 0x3A], len: 24, timeout: 1000 },
   liveV01:  { name: "VehStatusV01",    cmd: [0x22, 0x01], len: 16, timeout: 1000 },
+  settings: { name: "DisplaySettings", cmd: [0x22, 0x29], len: 34, timeout: 2000 },
 };
 const POLL_MS = 400;
 // App-Anmeldung (2E 18): [App-Version minor, patch, AppCode 4 Byte LE, Modus, Zufall 2 Byte].
@@ -313,6 +326,59 @@ function decodeV01(rx) {
   };
 }
 const fmt = (v, digits) => (v === null || v === undefined || Number.isNaN(v)) ? "–" : v.toFixed(digits);
+
+// ---- Display-Einstellungen (22 29) ----
+const SET_LUT = {
+  units: { 0: "metrisch (km)", 1: "imperial (mi)" },
+  secondary: { 0: "Strom (A)", 1: "Leistung (W)", 2: "Effizienz (Wh/km)" },
+  assist: { 0: "9 Stufen", 3: "3 Stufen", 5: "5 Stufen" },
+  shutdown: { 0: "nie", 1: "nach 5 Min", 2: "nach 2 Std", 3: "nach 10 Std" },
+  modeLabels: { 0: "Road / Offroad", 1: "Eco / Sport" },
+  roadRestrict: { 0: "nein", 1: "ja (Änderung per App)", 2: "ja (Änderung per Display)" },
+  layout: { 0: "Layout 1", 1: "Layout 2", 2: "Layout 3" },
+  proto: { 1: "Bafang UART", 4: "Bafang Rx/Tx getauscht", 17: "CAN Bafang" },
+};
+const lut = (m, v) => (v in m) ? m[v] : ("Code " + v);
+const onoff = (v) => v ? "ein" : "aus";
+function decodeSettings(rx) {
+  const d = rx.slice(2, rx.length - 2);
+  const bit = (o, s) => (d[o] >> s) & 1;
+  const bits = (o, s, n) => (d[o] >> s) & ((1 << n) - 1);
+  const bat = (o) => ({ lo: u16le(d, o) * 0.01, hi: u16le(d, o + 2) * 0.01, cap: u16le(d, o + 4) * 0.01 });
+  return {
+    immobilizer: bit(0, 7), preferredUnits: bit(0, 5), startupKeepLight: bit(0, 4),
+    resetTrip: bit(0, 2), startupRoad: bit(0, 1),
+    shutdown: bits(1, 6, 2), batteryUsed: bits(1, 4, 2), modeLabels: bits(1, 2, 2), roadRestrict: bits(1, 0, 2),
+    assistLevels: bits(2, 4, 4), secondaryUnit: bits(2, 0, 4), layout: bits(3, 0, 4),
+    wheel: u16le(d, 4), maxRoad: d[6], maxOff: d[7], proto: d[8],
+    bat: [bat(9), bat(15), bat(21)], walkDisabled: bit(27, 7),
+  };
+}
+function renderSettings(o) {
+  const row = (k, v) => `<div class="setrow"><span>${k}</span><span>${v}</span></div>`;
+  let h = "";
+  h += row("Einheiten", lut(SET_LUT.units, o.preferredUnits));
+  h += row("Zweitanzeige", lut(SET_LUT.secondary, o.secondaryUnit));
+  h += row("Assist-Stufen", lut(SET_LUT.assist, o.assistLevels));
+  h += row("Tempolimit Road", o.maxRoad + " km/h");
+  h += row("Tempolimit Offroad", o.maxOff + " km/h");
+  h += row("Radumfang", o.wheel + " mm");
+  h += row("Motor-Protokoll", lut(SET_LUT.proto, o.proto));
+  h += row("Abschaltung", lut(SET_LUT.shutdown, o.shutdown));
+  h += row("Modus-Bezeichnung", lut(SET_LUT.modeLabels, o.modeLabels));
+  h += row("Start im Road-Modus", onoff(o.startupRoad));
+  h += row("Road-Beschränkung", lut(SET_LUT.roadRestrict, o.roadRestrict));
+  h += row("Hauptbildschirm", lut(SET_LUT.layout, o.layout));
+  h += row("Licht beim Start an", onoff(o.startupKeepLight));
+  h += row("Wegfahrsperre", onoff(o.immobilizer));
+  h += row("Gehhilfe", o.walkDisabled ? "deaktiviert" : "aktiv");
+  h += `<div class="setsub">Akku-Profile (aktiv: Akku ${o.batteryUsed + 1})</div>`;
+  o.bat.forEach((b, i) => {
+    const active = i === o.batteryUsed ? " style=\"color:var(--accent2)\"" : "";
+    h += `<div class="setrow"${active}><span>Akku ${i + 1}</span><span>${b.lo.toFixed(1)}–${b.hi.toFixed(1)} V · ${b.cap.toFixed(1)} Ah</span></div>`;
+  });
+  $("setBody").innerHTML = h;
+}
 
 // Gauge-Skalen (Anzeigeobergrenze der Arcs)
 const GAUGE = { speed: 60, motor: 1600, rider: 500 };
@@ -523,6 +589,16 @@ async function loop() {
       const i = decodeIdentity(id);
       $("cFw").textContent = "Firmware: " + i.fw + " (R" + i.release + ")";
       log("Identität: MAC " + i.mac + ", Firmware " + i.fw + ", Release " + i.release);
+    }
+
+    // 3) Display-Einstellungen einmalig lesen (22 29).
+    const st = await request(REQ.settings);
+    if (st) {
+      try { renderSettings(decodeSettings(st)); log("Display-Einstellungen gelesen."); }
+      catch (e) { log("Einstellungen: Dekodierfehler – " + e.message); }
+    } else {
+      $("setBody").innerHTML = "<div class=\"setrow\"><span>Einstellungen nicht gelesen (keine gültige Antwort).</span><span></span></div>";
+      log("Einstellungen (22 29): keine gültige Antwort.");
     }
     let live = REQ.liveV04, misses = 0, good = 0;
     while (running && device && device.gatt.connected) {
