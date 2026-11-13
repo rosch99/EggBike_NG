@@ -65,7 +65,7 @@
 <main>
   <header>
     <h1>Bike-Display Testseite</h1>
-    <span class="ver">v0.4 · nur lesen</span>
+    <span class="ver">v0.6 · nur lesen</span>
   </header>
 
   <div class="alert" id="alert"></div>
@@ -104,8 +104,9 @@
   <details id="logBox" open>
     <summary>Protokoll (für Rückmeldung an die Entwicklung)</summary>
     <div class="row">
-      <button class="ghost" id="btnCopy">Protokoll kopieren</button>
+      <button class="ghost" id="btnRec">Aufzeichnen</button>
       <button class="ghost" id="btnClear">Leeren</button>
+      <button class="ghost" id="btnCopy">Kopieren</button>
     </div>
     <pre id="log"></pre>
   </details>
@@ -296,10 +297,10 @@ async function connect() {
   try {
     setStatus("busy", "Gerät wählen …", "Im Dialog das Display antippen.");
     log("Öffne Geräteauswahl …");
-    device = await navigator.bluetooth.requestDevice({
+    device = await withTimeout(navigator.bluetooth.requestDevice({
       filters: [{ services: [SVC] }, { namePrefix: "EggRider" }],
       optionalServices: [SVC],
-    });
+    }), 30000, "Geräteauswahl");
     log("Gewähltes Gerät: \"" + (device.name || "(ohne Namen)") + "\"  id=" + (device.id || "?"));
     device.addEventListener("gattserverdisconnected", onDisconnected);
     setStatus("busy", "Verbinde …", device.name || "");
@@ -361,7 +362,7 @@ async function loop() {
     }
     let live = REQ.liveV04, misses = 0, good = 0;
     while (running && device && device.gatt.connected) {
-      const rx = await request(live, good > 2);     // log the first few exchanges, then only failures
+      const rx = await request(live, good > 2 && !recording);   // Anfang + bei aktiver Aufzeichnung + Fehler loggen
       if (rx) {
         misses = 0; good++;
         render(live === REQ.liveV04 ? decodeV04(rx) : decodeV01(rx));
@@ -377,9 +378,16 @@ async function loop() {
   }
 }
 
+let recording = false;
 $("btnConnect").addEventListener("click", () => {
   if (device && device.gatt.connected) { running = false; device.gatt.disconnect(); }
   else connect();
+});
+$("btnRec").addEventListener("click", () => {
+  recording = !recording;
+  $("btnRec").textContent = recording ? "Aufzeichnung stoppen" : "Aufzeichnen";
+  $("btnRec").className = recording ? "" : "ghost";
+  log(recording ? "— Aufzeichnung gestartet —" : "— Aufzeichnung gestoppt —");
 });
 $("btnClear").addEventListener("click", () => { logLines.length = 0; $("log").textContent = ""; });
 $("btnCopy").addEventListener("click", async () => {
@@ -390,14 +398,22 @@ $("btnCopy").addEventListener("click", async () => {
     const s = getSelection(); s.removeAllRanges(); s.addRange(r);
     $("btnCopy").textContent = "Markiert – bitte kopieren";
   }
-  setTimeout(() => { $("btnCopy").textContent = "Protokoll kopieren"; }, 2000);
+  setTimeout(() => { $("btnCopy").textContent = "Kopieren"; }, 2000);
 });
 
+const UA = navigator.userAgent;
+const isSamsung = /SamsungBrowser/i.test(UA);
+const isChrome = /Chrome/i.test(UA) && !isSamsung && !/Edg|OPR|YaBrowser/i.test(UA);
 if (!("bluetooth" in navigator)) {
   $("btnConnect").disabled = true;
-  showAlert("Dieser Browser kann von Webseiten aus kein Bluetooth nutzen. Bitte die Seite in <b>Chrome auf Android</b> öffnen (nicht im Browser einer anderen App) und über eine https-Adresse aufrufen.");
+  showAlert("Dieser Browser kann von Webseiten aus kein Bluetooth nutzen. Bitte die Seite in <b>Google Chrome</b> öffnen (nicht im Samsung-Browser oder im Browser einer anderen App) und über eine https-Adresse aufrufen.");
+} else if (isSamsung) {
+  showAlert("Du bist im <b>Samsung Internet Browser</b>. Der öffnet kein Bluetooth-Auswahlfenster und bleibt beim Verbinden hängen. Bitte dieselbe Adresse in <b>Google Chrome</b> öffnen: Adresse kopieren, die Chrome-App starten, einfügen.");
+  log("WARNUNG: Samsung Internet erkannt – Web-Bluetooth funktioniert hier nicht. Bitte Chrome verwenden.");
+} else if (!isChrome) {
+  showAlert("Für die Bluetooth-Verbindung bitte <b>Google Chrome</b> auf Android verwenden. In anderen Browsern erscheint evtl. kein Auswahlfenster.");
 }
-log("Seite geladen. " + navigator.userAgent);
+log("Seite geladen. " + UA);
 </script>
 </body>
 </html>
