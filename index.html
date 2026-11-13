@@ -8,11 +8,11 @@
 <style>
   :root {
     --bg: #0e1116; --panel: #171c24; --line: #262d38; --text: #e8ecf1; --muted: #8a94a3;
-    --accent: #3ddc97; --warn: #ffb454; --bad: #ff6b6b; --accent2: #4aa8ff;
+    --accent: #3ddc97; --warn: #ffb454; --bad: #ff6b6b; --accent2: #4aa8ff; --accent3: #b06bff;
   }
   :root[data-theme="light"] {
     --bg: #eef1f5; --panel: #ffffff; --line: #d7dde4; --text: #0f141b; --muted: #576170;
-    --accent: #0e9a56; --warn: #b96c00; --bad: #d1352f; --accent2: #1f6fd0;
+    --accent: #0e9a56; --warn: #b96c00; --bad: #d1352f; --accent2: #1f6fd0; --accent3: #8a3ffc;
   }
   /* Offroad-Modus: rötlicher Akzent (wie am Display) */
   :root[data-mode="offroad"] {
@@ -67,6 +67,10 @@
   .gauge.hero-g .g-num { font-size: 88px; }
   .gauge.hero-g .g-unit { font-size: 16px; }
   .gauge.hero-g .g-label { font-size: 15px; }
+  .g-track2 { fill: none; stroke: var(--line); stroke-width: 15; stroke-linecap: round; }
+  .g-cad-arc { fill: none; stroke: var(--accent3); stroke-width: 15; stroke-linecap: round; transition: stroke-dasharray .35s ease; }
+  .g-cad { color: var(--accent3); font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; margin-top: 7px; }
+  .foot { text-align: center; color: var(--muted); font-size: 12px; margin-top: 22px; }
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 14px 14px 16px; margin-bottom: 12px; }
   .panel > .ph { color: var(--muted); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 10px; }
   /* Leistungs-Balken: Verhältnis Motor zu Fahrer (Segmente = Anteil an der Gesamtleistung, Summe 100 %) */
@@ -113,47 +117,28 @@
 </head>
 <body>
 <main>
-  <header>
-    <div><h1>Bike-Display</h1><span class="ver">v0.19 · nur lesen</span></div>
-    <div class="htools">
-      <button class="iconbtn" id="btnTheme" aria-label="Hell/Dunkel umschalten">☀️</button>
-    </div>
-  </header>
-
   <div class="alert" id="alert"></div>
 
   <div class="status">
     <span class="dot" id="dot"></span>
     <div id="statusText">Nicht verbunden<small id="statusSub">Display einschalten, dann „Verbinden“ tippen.</small></div>
     <button id="btnConnect">Verbinden</button>
-  </div>
-
-  <div class="ctl">
-    <button class="ghost" id="btnLight" disabled>💡 Licht</button>
+    <button class="iconbtn" id="btnTheme" aria-label="Hell/Dunkel umschalten">☀️</button>
   </div>
 
   <section class="gauge hero-g">
     <svg viewBox="0 0 200 158" aria-hidden="true">
       <path class="g-track" d="M25.5 143 A 86 86 0 1 1 174.5 143" pathLength="100"/>
       <path class="g-val" id="gSpeed" d="M25.5 143 A 86 86 0 1 1 174.5 143" pathLength="100" stroke-dasharray="0 100"/>
+      <path class="g-track2" d="M41.1 134 A 68 68 0 1 1 158.9 134" pathLength="100"/>
+      <path class="g-cad-arc" id="gCad" d="M41.1 134 A 68 68 0 1 1 158.9 134" pathLength="100" stroke-dasharray="0 100"/>
     </svg>
-    <div class="g-center"><div class="g-num" id="speed">–</div><div class="g-unit">km/h</div></div>
-    <div class="g-label">Geschwindigkeit</div>
-  </section>
-
-  <section class="hero" style="padding:14px 16px 12px">
-    <div class="bar"><i id="battBar"></i></div>
-    <div class="barlbl"><span>Akku (Display)</span><span id="battTxt">– %</span></div>
-    <div class="barlbl" style="margin-top:4px">
-      <span id="battEst" style="color:var(--accent2)">–</span>
-      <select id="battType" aria-label="Akkutyp">
-        <option value="10">36 V (10S)</option>
-        <option value="13" selected>48 V (13S)</option>
-        <option value="14">52 V (14S)</option>
-        <option value="16">60 V (16S)</option>
-      </select>
+    <div class="g-center">
+      <div class="g-num" id="speed">–</div>
+      <div class="g-unit">km/h</div>
+      <div class="g-cad"><span id="cadGauge">–</span> rpm</div>
     </div>
-    <div class="barlbl" style="margin-top:4px"><span id="battDetail"></span><span></span></div>
+    <div class="g-label">Tempo · Trittfrequenz</div>
   </section>
 
   <section class="panel">
@@ -168,13 +153,24 @@
     </div>
   </section>
 
+  <section class="panel">
+    <div class="ph2"><span>Akku</span><span id="battTxt">– %</span></div>
+    <div class="bar"><i id="battBar"></i></div>
+    <div class="pleg">
+      <span><b id="battEst" style="color:var(--accent2)">–</b></span>
+      <select id="battType" aria-label="Akkutyp">
+        <option value="10">36 V (10S)</option>
+        <option value="13" selected>48 V (13S)</option>
+        <option value="14">52 V (14S)</option>
+        <option value="16">60 V (16S)</option>
+      </select>
+    </div>
+    <div class="barlbl" style="margin-top:6px"><span id="battDetail"></span><span></span></div>
+  </section>
+
   <section class="grid">
     <div class="tile"><div class="k">Spannung</div><div class="v"><span id="volt">–</span><small>V</small></div></div>
-    <div class="tile"><div class="k">Strom</div><div class="v"><span id="amp">–</span><small>A</small></div></div>
     <div class="tile"><div class="k">Unterstützung</div><div class="v"><span id="assist">–</span><small id="mode"></small></div></div>
-    <div class="tile"><div class="k">Drehmoment</div><div class="v"><span id="torque">–</span><small>Nm</small></div></div>
-    <div class="tile"><div class="k">Motor-Temperatur</div><div class="v"><span id="tMotor">–</span><small>°C</small></div></div>
-    <div class="tile"><div class="k">Trittfrequenz</div><div class="v"><span id="cad">–</span><small>/min</small></div></div>
   </section>
 
   <div class="chips">
@@ -202,6 +198,7 @@
   </details>
   <p class="note">Diese Seite liest nur Werte aus dem Display. Sie ändert keine Einstellungen an Display oder Motor.
   Bildschirm bitte eingeschaltet lassen – im Hintergrund trennt der Browser die Verbindung.</p>
+  <div class="foot">Bike-Display · v0.21 · nur lesen</div>
 </main>
 
 <script>
@@ -407,7 +404,7 @@ function renderSettings(o) {
 }
 
 // Gauge-Skalen (Anzeigeobergrenze der Arcs)
-const GAUGE = { speed: 60, motor: 1600, rider: 500, powerMax: 2000 };
+const GAUGE = { speed: 60, motor: 1600, rider: 500, powerMax: 2000, cadence: 120 };
 // Füllt eine Gauge: Anteil 0..1 als stroke-dasharray, Farbe optional.
 function setGauge(arcId, value, max, color) {
   const f = Math.max(0, Math.min(1, (value || 0) / max));
@@ -427,9 +424,9 @@ function riderPower(torqueNm, cadenceRpm) {
 
 // ---- Glättung (exponentiell gleitender Mittelwert) ----
 // alpha klein = ruhiger/träger, groß = schneller/zappeliger. Pro Messgröße abgestimmt.
-const EMA_ALPHA = { speed: 0.4, motor: 0.3, rider: 0.25, soc: 0.05 };
-const ema = { speed: null, motor: null, rider: null, soc: null };
-function resetSmoothing() { ema.speed = ema.motor = ema.rider = ema.soc = null; }
+const EMA_ALPHA = { speed: 0.4, motor: 0.3, rider: 0.25, soc: 0.05, cadence: 0.3 };
+const ema = { speed: null, motor: null, rider: null, soc: null, cadence: null };
+function resetSmoothing() { ema.speed = ema.motor = ema.rider = ema.soc = ema.cadence = null; }
 function smooth(key, val) {
   if (val == null) return ema[key];
   const a = EMA_ALPHA[key];
@@ -484,22 +481,22 @@ function updateSoc(voltage, current) {
 function render(s) {
   // Rohwerte in die Kacheln (für Diagnose exakt), geglättete Werte in die Gauges.
   $("volt").textContent = fmt(s.voltage, 1);
-  $("amp").textContent = fmt(s.current, 1);
-  $("torque").textContent = (s.humanTorque === null || s.humanTorque === undefined) ? "–" : s.humanTorque;
   $("assist").textContent = s.assist;
   $("mode").textContent = s.mode ? "Offroad" : "Road";
   const modeName = s.mode ? "offroad" : "road";   // Offroad → rötliches Theme wie am Display
   if (modeName !== curMode) { curMode = modeName; document.documentElement.setAttribute("data-mode", modeName); updateMeta(); }
-  $("tMotor").textContent = (s.tMotor === null || s.tMotor === undefined) ? "–" : fmt(s.tMotor, 0);
-  $("cad").textContent = (s.cadence === null || s.cadence === undefined) ? "–" : s.cadence;
 
   const motorW = s.voltage * s.current;
   const riderW = riderPower(s.humanTorque, s.cadence);
   const speedS = smooth("speed", s.speed);
   const motorS = smooth("motor", motorW);
   const riderS = smooth("rider", riderW === null ? 0 : riderW);
+  const cadS = smooth("cadence", s.cadence);
   $("speed").textContent = fmt(speedS, 1);
   setGauge("gSpeed", speedS, GAUGE.speed, band(speedS, 35, 50));
+  // Innerer Arc: Trittfrequenz
+  setGauge("gCad", cadS, GAUGE.cadence);
+  $("cadGauge").textContent = (cadS === null || cadS === undefined) ? "–" : Math.round(cadS);
   // Leistungs-Balken: Segmentbreiten = Anteil an der Gesamtleistung (Summe = 100 %).
   const total = (motorS || 0) + (riderS || 0);
   const mPct = total > 0 ? (motorS / total) * 100 : 0;
@@ -516,9 +513,9 @@ function render(s) {
   $("battTxt").textContent = s.battery + " %";
   const soc = updateSoc(s.voltage, s.current);
   if (soc.soc != null) {
-    $("battEst").textContent = "≈ " + soc.soc.toFixed(0) + " % (Coulomb-Zähler)";
-    $("battDetail").textContent = (s.voltage / BATTERY.cells).toFixed(2) + " V/Zelle · "
-      + soc.consumed.toFixed(2) + " / " + PACK.capacityAh + " Ah verbraucht";
+    $("battEst").textContent = "≈ " + soc.soc.toFixed(0) + " %";
+    $("battDetail").textContent = "Coulomb-Zähler · " + (s.voltage / BATTERY.cells).toFixed(2) + " V/Zelle · "
+      + soc.consumed.toFixed(2) + " / " + PACK.capacityAh + " Ah";
   }
   // Licht steuert das Theme: an → dunkel, aus → hell. Nur bei Änderung, damit manuelles Umschalten bis dahin bleibt.
   if (s.light !== lastLightState) {
@@ -527,7 +524,6 @@ function render(s) {
     applyTheme(theme);
   }
   lastLight = s.light;
-  $("btnLight").textContent = "💡 Licht " + (s.light ? "aus" : "an");
   $("cLight").className = "chip" + (s.light ? " on" : "");
   $("cLock").className = "chip" + (s.lock ? " on" : "");
   $("cCruise").className = "chip" + (s.cruise ? " on" : "");
@@ -580,7 +576,6 @@ async function connect() {
     log("Verbunden, Benachrichtigungen aktiv.");
     setStatus("on", "Verbunden", device.name || "");
     $("btnConnect").textContent = "Trennen";
-    $("btnLight").disabled = false;
     try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
     resetSmoothing();
     resetCoulomb();
@@ -606,7 +601,6 @@ function onDisconnected() {
   log("Verbindung getrennt.");
   setStatus("err", "Getrennt", "Zum erneuten Verbinden tippen.");
   $("btnConnect").textContent = "Verbinden";
-  $("btnLight").disabled = true;
   pendingCommands.length = 0;
   lastLightState = null;   // beim nächsten Verbinden Theme neu nach Lichtzustand setzen
   curMode = "road"; document.documentElement.setAttribute("data-mode", "road"); updateMeta();
@@ -699,12 +693,6 @@ let recording = false;
 $("btnConnect").addEventListener("click", () => {
   if (device && device.gatt.connected) { running = false; device.gatt.disconnect(); }
   else connect();
-});
-$("btnLight").addEventListener("click", () => {
-  if (!running) return;
-  const target = !lastLight;
-  pendingCommands.push(buildLight(target));
-  log("Befehl eingereiht: Licht " + (target ? "AN" : "AUS"));
 });
 $("btnRec").addEventListener("click", () => {
   recording = !recording;
